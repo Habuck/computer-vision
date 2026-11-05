@@ -1,6 +1,6 @@
-Method,blockSize,numDisparities,Valid Disparity (%),Epipolar Error (px),RMSE (px),Bad-Pixel >2px (%),Runtime (ms)
-BM,15,64,83.94,0.3281,6.21,12.6,7.03
-BM,21,64,81.94,0.3281,6.11,12.49,6.12
-SGBM,5,64,88.91,0.3281,6.4,13.22,14.66
-SGBM,9,64,88.84,0.3281,6.36,13.06,16.7
-SGBM,5,80,86.4,0.3281,6.5,13.58,20.53
+Method,blockSize,numDisparities,Valid Disparity (%),RMSE (px),Bad-Pixel >2px (%),Runtime (ms)
+BM,15,64,83.94,2.18,1.16,8.66
+BM,21,64,81.95,2.27,1.32,8.89
+SGBM,5,64,88.91,1.25,1.09,19.51
+SGBM,9,64,88.83,1.32,1.16,23.74
+SGBM,5,80,86.4,1.25,1.09,26.07

@@ -10,3 +10,4 @@ venv/
 *.synctex.gz
 *.fls
 *.fdb_latexmk
+report_latex/main.pdf

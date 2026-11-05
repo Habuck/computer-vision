@@ -118,5 +118,71 @@ def run_part_a(img_path="data/reference_image.jpg"):
     df.to_csv("results/part_a/quantitative_part_a.csv", index=False)
     print(df.to_string(index=False))
 
+    plot_metric_bars(df)
+    sigma_sensitivity(clean, noises)
+
+def plot_metric_bars(df):
+    filters = ["Mean", "Gaussian", "Median", "Laplacian"]
+    kernels = ["3x3", "5x5", "7x7"]
+    width = 0.2
+    x = np.arange(len(kernels))
+
+    fig, axes = plt.subplots(2, 2, figsize=(13, 8))
+    for row, noise_name in enumerate(["Gaussian", "SaltPepper"]):
+        sub = df[df["Noise Type"] == noise_name]
+        for col, metric in enumerate(["PSNR (dB)", "SSIM"]):
+            ax = axes[row, col]
+            for i, f in enumerate(filters):
+                vals = [sub[(sub["Filter"].str.startswith(f)) & (sub["Kernel"] == k)][metric].values[0] for k in kernels]
+                ax.bar(x + (i - 1.5) * width, vals, width, label=f)
+            ax.set_xticks(x)
+            ax.set_xticklabels(kernels)
+            ax.set_title(f"{metric} - {noise_name} noise", fontweight='bold')
+            ax.grid(axis='y', alpha=0.3)
+            if row == 0 and col == 0:
+                ax.legend()
+    plt.tight_layout()
+    plt.savefig("results/part_a/metrics_bar_chart.png", dpi=180)
+    plt.savefig("report_latex/figures/metrics_bar_chart.png", dpi=180)
+    plt.close()
+
+def sigma_sensitivity(clean, noises, sigmas=(0.5, 1.0, 1.5, 2.0, 2.5, 3.0)):
+    records = []
+    for noise_name, noisy_img in noises.items():
+        for s in sigmas:
+            k = 2 * int(np.ceil(3 * s)) + 1
+            t0 = time.perf_counter()
+            out = cv2.GaussianBlur(noisy_img, (k, k), sigmaX=s)
+            exec_t = (time.perf_counter() - t0) * 1000
+            records.append({
+                "Noise Type": noise_name,
+                "sigma": s,
+                "Kernel": f"{k}x{k}",
+                "MSE": round(mse(clean, out), 2),
+                "PSNR (dB)": round(psnr(clean, out, data_range=255), 2),
+                "SSIM": round(ssim(clean, out, data_range=255), 4),
+                "Time (ms)": round(exec_t, 3)
+            })
+
+    df = pd.DataFrame(records)
+    df.to_csv("results/part_a/sigma_sensitivity.csv", index=False)
+    print(df.to_string(index=False))
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.2))
+    for noise_name in noises:
+        sub = df[df["Noise Type"] == noise_name]
+        axes[0].plot(sub["sigma"], sub["PSNR (dB)"], marker='o', label=noise_name)
+        axes[1].plot(sub["sigma"], sub["SSIM"], marker='o', label=noise_name)
+    for ax, metric in zip(axes, ["PSNR (dB)", "SSIM"]):
+        ax.set_xlabel("Gaussian filter sigma")
+        ax.set_ylabel(metric)
+        ax.set_title(f"Gaussian filter: {metric} vs. sigma", fontweight='bold')
+        ax.grid(alpha=0.3)
+        ax.legend()
+    plt.tight_layout()
+    plt.savefig("results/part_a/sigma_sensitivity.png", dpi=180)
+    plt.savefig("report_latex/figures/sigma_sensitivity.png", dpi=180)
+    plt.close()
+
 if __name__ == "__main__":
     run_part_a()

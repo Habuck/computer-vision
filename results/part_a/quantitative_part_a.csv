@@ -1,25 +1,25 @@
 Noise Type,Filter,Kernel,MSE,PSNR (dB),SSIM,Time (ms)
-Gaussian,Mean (3x3),3x3,275.13,23.74,0.687,0.388
-Gaussian,"Gaussian (3x3, sigma=0.8)",3x3,216.71,24.77,0.6768,0.279
-Gaussian,Median (3x3),3x3,233.37,24.45,0.6439,0.172
-Gaussian,Laplacian (3x3),3x3,533.73,20.86,0.4946,2.091
-Gaussian,Mean (5x5),5x5,468.23,21.43,0.7102,0.14
-Gaussian,"Gaussian (5x5, sigma=1.2)",5x5,309.7,23.22,0.737,0.199
-Gaussian,Median (5x5),5x5,316.77,23.12,0.7198,0.18
-Gaussian,Laplacian (5x5),5x5,1675.13,15.89,0.4055,2.056
-Gaussian,Mean (7x7),7x7,663.66,19.91,0.6748,0.354
-Gaussian,"Gaussian (7x7, sigma=1.6)",7x7,423.12,21.87,0.7408,0.274
-Gaussian,Median (7x7),7x7,436.06,21.74,0.7321,0.55
-Gaussian,Laplacian (7x7),7x7,3237.72,13.03,0.3421,2.915
-SaltPepper,Mean (3x3),3x3,443.03,21.67,0.5606,0.123
-SaltPepper,"Gaussian (3x3, sigma=0.8)",3x3,427.2,21.82,0.553,0.147
-SaltPepper,Median (3x3),3x3,135.57,26.81,0.9284,0.12
-SaltPepper,Laplacian (3x3),3x3,659.73,19.94,0.8179,1.638
-SaltPepper,Mean (5x5),5x5,562.61,20.63,0.6138,0.134
-SaltPepper,"Gaussian (5x5, sigma=1.2)",5x5,428.76,21.81,0.6208,0.204
-SaltPepper,Median (5x5),5x5,272.33,23.78,0.874,0.219
-SaltPepper,Laplacian (5x5),5x5,1818.02,15.53,0.6582,3.112
-SaltPepper,Mean (7x7),7x7,741.87,19.43,0.6154,0.334
-SaltPepper,"Gaussian (7x7, sigma=1.6)",7x7,515.76,21.01,0.6523,0.267
-SaltPepper,Median (7x7),7x7,410.55,22.0,0.8271,0.383
-SaltPepper,Laplacian (7x7),7x7,2920.78,13.48,0.5108,2.573
+Gaussian,Mean (3x3),3x3,275.13,23.74,0.687,1.389
+Gaussian,"Gaussian (3x3, sigma=0.8)",3x3,216.71,24.77,0.6768,1.163
+Gaussian,Median (3x3),3x3,233.37,24.45,0.6439,0.439
+Gaussian,Laplacian (3x3),3x3,533.73,20.86,0.4946,1.949
+Gaussian,Mean (5x5),5x5,468.23,21.43,0.7102,0.092
+Gaussian,"Gaussian (5x5, sigma=1.2)",5x5,309.7,23.22,0.737,0.352
+Gaussian,Median (5x5),5x5,316.77,23.12,0.7198,0.157
+Gaussian,Laplacian (5x5),5x5,1675.13,15.89,0.4055,2.81
+Gaussian,Mean (7x7),7x7,663.66,19.91,0.6748,0.234
+Gaussian,"Gaussian (7x7, sigma=1.6)",7x7,423.12,21.87,0.7408,0.371
+Gaussian,Median (7x7),7x7,436.06,21.74,0.7321,0.509
+Gaussian,Laplacian (7x7),7x7,3237.72,13.03,0.3421,1.848
+SaltPepper,Mean (3x3),3x3,443.03,21.67,0.5606,0.138
+SaltPepper,"Gaussian (3x3, sigma=0.8)",3x3,427.2,21.82,0.553,0.187
+SaltPepper,Median (3x3),3x3,135.57,26.81,0.9284,0.105
+SaltPepper,Laplacian (3x3),3x3,659.73,19.94,0.8179,2.021
+SaltPepper,Mean (5x5),5x5,562.61,20.63,0.6138,0.146
+SaltPepper,"Gaussian (5x5, sigma=1.2)",5x5,428.76,21.81,0.6208,0.237
+SaltPepper,Median (5x5),5x5,272.33,23.78,0.874,0.205
+SaltPepper,Laplacian (5x5),5x5,1818.02,15.53,0.6582,1.987
+SaltPepper,Mean (7x7),7x7,741.87,19.43,0.6154,0.371
+SaltPepper,"Gaussian (7x7, sigma=1.6)",7x7,515.76,21.01,0.6523,0.3
+SaltPepper,Median (7x7),7x7,410.55,22.0,0.8271,0.455
+SaltPepper,Laplacian (7x7),7x7,2920.78,13.48,0.5108,3.335

@@ -19,6 +19,8 @@ def create_4_overlapping_views(ref_path="data/reference_image.jpg"):
     crop_w, crop_h = 480, 560
     x_offsets = [0, 230, 460, 690]
     y_offsets = [40, 25, 45, 30]
+    # Per-view exposure gains simulate auto-exposure changes between handheld shots
+    gains = [1.00, 0.88, 1.10, 0.94]
 
     for i, (x0, y0) in enumerate(zip(x_offsets, y_offsets)):
         patch = canvas[y0:y0+crop_h, x0:x0+crop_w].copy()
@@ -33,6 +35,7 @@ def create_4_overlapping_views(ref_path="data/reference_image.jpg"):
         ])
         M = cv2.getPerspectiveTransform(src_pts, dst_pts)
         warped_view = cv2.warpPerspective(patch, M, (crop_w, crop_h), borderMode=cv2.BORDER_REFLECT)
+        warped_view = cv2.convertScaleAbs(warped_view, alpha=gains[i])
         cv2.imwrite(f"data/view_{i+1}.png", warped_view)
         views.append(warped_view)
 
@@ -98,6 +101,10 @@ def detect_and_match(img1, img2, detector_name="SIFT", ratio_thresh=0.75, ransac
         "mask": mask.ravel().tolist()
     }
 
+def overwrite_blend(base_img, warped_img):
+    mask_warp = (np.sum(warped_img, axis=2) > 0)[..., None]
+    return np.where(mask_warp, warped_img, base_img)
+
 def feather_blend(base_img, warped_img):
     mask_base = (np.sum(base_img, axis=2) > 0).astype(np.float32)
     mask_warp = (np.sum(warped_img, axis=2) > 0).astype(np.float32)
@@ -112,7 +119,45 @@ def feather_blend(base_img, warped_img):
     blended = base_img.astype(np.float32) * w1 + warped_img.astype(np.float32) * w2
     return np.clip(blended, 0, 255).astype(np.uint8)
 
-def stitch_4_images(views, detector_name="SIFT", ransac_thresh=4.0):
+def multiband_blend(base_img, warped_img, levels=5):
+    mask_base = np.sum(base_img, axis=2) > 0
+    mask_warp = np.sum(warped_img, axis=2) > 0
+    if not mask_base.any():
+        return warped_img.copy()
+
+    dist_base = cv2.distanceTransform(mask_base.astype(np.uint8), cv2.DIST_L2, 3)
+    dist_warp = cv2.distanceTransform(mask_warp.astype(np.uint8), cv2.DIST_L2, 3)
+    seam_mask = (dist_warp > dist_base).astype(np.float32)
+
+    # Fill each image's empty area with the other so pyramid levels do not bleed black borders into the overlap
+    a = np.where(mask_base[..., None], base_img, warped_img).astype(np.float32)
+    b = np.where(mask_warp[..., None], warped_img, base_img).astype(np.float32)
+
+    h, w = seam_mask.shape
+    gauss_m, lap_a, lap_b = [seam_mask], [], []
+    cur_a, cur_b = a, b
+    for _ in range(levels):
+        down_a, down_b = cv2.pyrDown(cur_a), cv2.pyrDown(cur_b)
+        size = (cur_a.shape[1], cur_a.shape[0])
+        lap_a.append(cur_a - cv2.pyrUp(down_a, dstsize=size))
+        lap_b.append(cur_b - cv2.pyrUp(down_b, dstsize=size))
+        gauss_m.append(cv2.pyrDown(gauss_m[-1]))
+        cur_a, cur_b = down_a, down_b
+    lap_a.append(cur_a)
+    lap_b.append(cur_b)
+
+    blended = None
+    for la, lb, gm in reversed(list(zip(lap_a, lap_b, gauss_m))):
+        level = la * (1.0 - gm[..., None]) + lb * gm[..., None]
+        if blended is None:
+            blended = level
+        else:
+            blended = cv2.pyrUp(blended, dstsize=(level.shape[1], level.shape[0])) + level
+
+    union = (mask_base | mask_warp)[..., None]
+    return np.where(union, np.clip(blended, 0, 255), 0).astype(np.uint8)
+
+def stitch_4_images(views, detector_name="SIFT", ransac_thresh=4.0, blend="feather"):
     t_start = time.perf_counter()
 
     m01 = detect_and_match(views[1], views[0], detector_name, ransac_thresh=ransac_thresh)
@@ -125,7 +170,8 @@ def stitch_4_images(views, detector_name="SIFT", ransac_thresh=4.0):
         inlier_matches[:80], None,
         flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
     )
-    cv2.imwrite(f"results/part_c/inliers_{detector_name}_r{int(ransac_thresh)}.png", match_vis)
+    if blend == "feather":
+        cv2.imwrite(f"results/part_c/inliers_{detector_name}_r{int(ransac_thresh)}.png", match_vis)
 
     H_0_to_1 = m01["H"]
     H_1_to_1 = np.eye(3)
@@ -147,23 +193,29 @@ def stitch_4_images(views, detector_name="SIFT", ransac_thresh=4.0):
     T_shift = np.array([[1, 0, -xmin], [0, 1, -ymin], [0, 0, 1]], dtype=np.float64)
     pano_w, pano_h = min(2400, xmax - xmin), min(1400, ymax - ymin)
 
+    blend_fn = {"none": overwrite_blend, "feather": feather_blend, "multiband": multiband_blend}[blend]
     panorama = np.zeros((pano_h, pano_w, 3), dtype=np.uint8)
+    t_blend = time.perf_counter()
     for img, H in zip(views, homographies):
         warped = cv2.warpPerspective(img, T_shift @ H, (pano_w, pano_h))
-        panorama = feather_blend(panorama, warped)
+        panorama = blend_fn(panorama, warped)
+    blend_time = (time.perf_counter() - t_blend) * 1000
 
     total_time = (time.perf_counter() - t_start) * 1000
-    cv2.imwrite(f"results/part_c/panorama_{detector_name}_r{int(ransac_thresh)}.png", panorama)
+    suffix = "" if blend == "feather" else f"_{blend}"
+    cv2.imwrite(f"results/part_c/panorama_{detector_name}_r{int(ransac_thresh)}{suffix}.png", panorama)
 
     pair_stats = [m01, m12, m23]
     return {
         "Detector": detector_name,
         "RANSAC Thresh (px)": ransac_thresh,
+        "Blending": blend,
         "Total Keypoints": sum(s["num_kp"] for s in pair_stats),
         "Initial Matches": sum(s["initial_matches"] for s in pair_stats),
         "Inliers": sum(s["inliers"] for s in pair_stats),
         "Inlier Ratio (%)": round(np.mean([s["inlier_ratio"] for s in pair_stats]), 2),
         "Mean RMSE (px)": round(np.mean([s["rmse"] for s in pair_stats]), 3),
+        "Blending Time (ms)": round(blend_time, 2),
         "Stitching Time (ms)": round(total_time, 2)
     }, match_vis, panorama
 
@@ -188,6 +240,9 @@ def run_part_c():
     df.to_csv("results/part_c/quantitative_part_c.csv", index=False)
     print(df.to_string(index=False))
 
+    plot_keypoints(views[1])
+    compare_blending(views)
+
     # Create comparison figure for report
     fig, axes = plt.subplots(3, 2, figsize=(15, 11))
     for idx, det in enumerate(["SIFT", "ORB", "AKAZE"]):
@@ -204,6 +259,61 @@ def run_part_c():
     plt.tight_layout()
     plt.savefig("results/part_c/stitching_comparison.png", dpi=180)
     plt.savefig("report_latex/figures/stitching_comparison.png", dpi=180)
+    plt.close()
+
+def plot_keypoints(view):
+    detectors = {
+        "SIFT": cv2.SIFT_create(),
+        "ORB": cv2.ORB_create(nfeatures=3000),
+        "AKAZE": cv2.AKAZE_create()
+    }
+    fig, axes = plt.subplots(1, 3, figsize=(15, 6))
+    for ax, (name, det) in zip(axes, detectors.items()):
+        kps = det.detect(view, None)
+        vis = view.copy()
+        for kp in kps:
+            cv2.circle(vis, tuple(np.int32(kp.pt)), 2, (0, 255, 0), -1)
+        ax.imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB))
+        ax.set_title(f"{name}: {len(kps)} keypoints (View 2)", fontweight='bold')
+        ax.axis('off')
+    plt.suptitle("Part C: Keypoint Detection Comparison", fontsize=13, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig("results/part_c/keypoints_comparison.png", dpi=180)
+    plt.savefig("report_latex/figures/keypoints_comparison.png", dpi=180)
+    plt.close()
+
+def compare_blending(views, detector_name="SIFT", ransac_thresh=4.0):
+    records, panos = [], {}
+    for blend in ["none", "feather", "multiband"]:
+        res, _, pano = stitch_4_images(views, detector_name, ransac_thresh, blend=blend)
+        records.append(res)
+        panos[blend] = pano
+
+    df = pd.DataFrame(records)
+    df.to_csv("results/part_c/blending_comparison.csv", index=False)
+    print(df.to_string(index=False))
+
+    # Crop around the View 2 / View 3 overlap where the exposure jump (0.88 -> 1.10) is largest
+    h, w = panos["none"].shape[:2]
+    cx, half = int(w * 0.5), int(w * 0.12)
+    titles = {"none": "No blending (overwrite)", "feather": "Feather (distance transform)",
+              "multiband": "Laplacian pyramid (5 levels)"}
+    fig, axes = plt.subplots(2, 3, figsize=(16, 8.5), gridspec_kw={"height_ratios": [1, 1.3]})
+    for col, blend in enumerate(["none", "feather", "multiband"]):
+        pano = cv2.cvtColor(panos[blend], cv2.COLOR_BGR2RGB)
+        axes[0, col].imshow(pano)
+        axes[0, col].axvspan(cx - half, cx + half, color='yellow', alpha=0.15)
+        axes[0, col].set_title(f"{titles[blend]}\nBlend time: {records[col]['Blending Time (ms)']:.0f} ms",
+                               fontweight='bold')
+        axes[1, col].imshow(pano[:, cx - half:cx + half])
+        axes[1, col].set_title("Zoom on View 2 / View 3 overlap", fontsize=10)
+        for ax in axes[:, col]:
+            ax.axis('off')
+    plt.suptitle("Part C: Blending Comparison under Exposure Differences (SIFT, RANSAC 4 px)",
+                 fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig("results/part_c/blending_comparison.png", dpi=180)
+    plt.savefig("report_latex/figures/blending_comparison.png", dpi=180)
     plt.close()
 
 if __name__ == "__main__":

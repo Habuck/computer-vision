@@ -1,0 +1,4 @@
+Detector,RANSAC Thresh (px),Blending,Total Keypoints,Initial Matches,Inliers,Inlier Ratio (%),Mean RMSE (px),Blending Time (ms),Stitching Time (ms)
+SIFT,4.0,none,9976,2394,1395,57.95,0.266,155.79,594.26
+SIFT,4.0,feather,9976,2394,1395,57.95,0.266,381.65,1149.33
+SIFT,4.0,multiband,9976,2394,1395,57.95,0.266,598.35,1286.91

@@ -1,0 +1,35 @@
+\begin{tabular}{llcrrrr}
+\toprule
+Noise & Filter & Kernel & MSE $\downarrow$ & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & Time (ms) $\downarrow$ \\
+\midrule
+Gaussian ($\sigma_n$=25) & Mean & 3$\times$3 & 275.13 & 23.74 & 0.6870 & 1.389 \\
+\textbf{Gaussian ($\sigma_n$=25)} & \textbf{Gaussian ($\sigma$=0.8)} & \textbf{3$\times$3} & \textbf{216.71} & \textbf{24.77} & \textbf{0.6768} & \textbf{1.163} \\
+Gaussian ($\sigma_n$=25) & Median & 3$\times$3 & 233.37 & 24.45 & 0.6439 & 0.439 \\
+Gaussian ($\sigma_n$=25) & Laplacian & 3$\times$3 & 533.73 & 20.86 & 0.4946 & 1.949 \\
+\midrule
+Gaussian ($\sigma_n$=25) & Mean & 5$\times$5 & 468.23 & 21.43 & 0.7102 & 0.092 \\
+Gaussian ($\sigma_n$=25) & Gaussian ($\sigma$=1.2) & 5$\times$5 & 309.70 & 23.22 & 0.7370 & 0.352 \\
+Gaussian ($\sigma_n$=25) & Median & 5$\times$5 & 316.77 & 23.12 & 0.7198 & 0.157 \\
+Gaussian ($\sigma_n$=25) & Laplacian & 5$\times$5 & 1675.13 & 15.89 & 0.4055 & 2.810 \\
+\midrule
+Gaussian ($\sigma_n$=25) & Mean & 7$\times$7 & 663.66 & 19.91 & 0.6748 & 0.234 \\
+Gaussian ($\sigma_n$=25) & Gaussian ($\sigma$=1.6) & 7$\times$7 & 423.12 & 21.87 & 0.7408 & 0.371 \\
+Gaussian ($\sigma_n$=25) & Median & 7$\times$7 & 436.06 & 21.74 & 0.7321 & 0.509 \\
+Gaussian ($\sigma_n$=25) & Laplacian & 7$\times$7 & 3237.72 & 13.03 & 0.3421 & 1.848 \\
+\midrule
+S\&P (8\%) & Mean & 3$\times$3 & 443.03 & 21.67 & 0.5606 & 0.138 \\
+S\&P (8\%) & Gaussian ($\sigma$=0.8) & 3$\times$3 & 427.20 & 21.82 & 0.5530 & 0.187 \\
+\textbf{S\&P (8\%)} & \textbf{Median} & \textbf{3$\times$3} & \textbf{135.57} & \textbf{26.81} & \textbf{0.9284} & \textbf{0.105} \\
+S\&P (8\%) & Laplacian & 3$\times$3 & 659.73 & 19.94 & 0.8179 & 2.021 \\
+\midrule
+S\&P (8\%) & Mean & 5$\times$5 & 562.61 & 20.63 & 0.6138 & 0.146 \\
+S\&P (8\%) & Gaussian ($\sigma$=1.2) & 5$\times$5 & 428.76 & 21.81 & 0.6208 & 0.237 \\
+S\&P (8\%) & Median & 5$\times$5 & 272.33 & 23.78 & 0.8740 & 0.205 \\
+S\&P (8\%) & Laplacian & 5$\times$5 & 1818.02 & 15.53 & 0.6582 & 1.987 \\
+\midrule
+S\&P (8\%) & Mean & 7$\times$7 & 741.87 & 19.43 & 0.6154 & 0.371 \\
+S\&P (8\%) & Gaussian ($\sigma$=1.6) & 7$\times$7 & 515.76 & 21.01 & 0.6523 & 0.300 \\
+S\&P (8\%) & Median & 7$\times$7 & 410.55 & 22.00 & 0.8271 & 0.455 \\
+S\&P (8\%) & Laplacian & 7$\times$7 & 2920.78 & 13.48 & 0.5108 & 3.335 \\
+\bottomrule
+\end{tabular}

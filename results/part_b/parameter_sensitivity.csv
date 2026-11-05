@@ -1,0 +1,20 @@
+Method,Varied,blockSize,numDisparities,Valid Disparity (%),RMSE (px),Bad-Pixel >2px (%),Runtime (ms)
+BM,blockSize,5,64,84.5,2.85,1.96,10.16
+BM,blockSize,9,64,85.86,1.98,0.97,10.32
+BM,blockSize,15,64,83.94,2.18,1.16,10.13
+BM,blockSize,21,64,81.95,2.27,1.32,11.41
+BM,blockSize,31,64,78.72,2.1,1.29,25.68
+SGBM,blockSize,3,64,88.95,1.23,1.05,23.81
+SGBM,blockSize,5,64,88.91,1.25,1.09,25.91
+SGBM,blockSize,7,64,88.86,1.28,1.12,27.52
+SGBM,blockSize,9,64,88.83,1.32,1.16,26.21
+SGBM,blockSize,11,64,88.84,1.4,1.24,26.76
+SGBM,blockSize,15,64,88.76,1.55,1.35,26.57
+BM,numDisparities,15,48,86.43,2.13,1.15,13.34
+BM,numDisparities,15,64,83.94,2.18,1.16,10.29
+BM,numDisparities,15,96,79.01,2.48,1.15,13.48
+BM,numDisparities,15,128,74.15,2.75,1.14,16.26
+SGBM,numDisparities,9,48,91.35,1.32,1.16,27.28
+SGBM,numDisparities,9,64,88.83,1.32,1.16,31.66
+SGBM,numDisparities,9,96,83.79,1.32,1.15,39.84
+SGBM,numDisparities,9,128,78.79,1.8,1.39,47.0

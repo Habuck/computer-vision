@@ -1,6 +1,6 @@
-Detector,RANSAC Thresh (px),Total Keypoints,Initial Matches,Inliers,Inlier Ratio (%),Mean RMSE (px),Stitching Time (ms)
-SIFT,2.0,10043,2449,1488,60.58,0.207,1606.6
-SIFT,4.0,10043,2449,1497,60.95,0.256,1450.76
-ORB,2.0,17582,3113,1977,62.66,0.817,856.84
-ORB,4.0,17582,3113,2296,73.29,0.967,880.76
-AKAZE,4.0,7285,1951,1252,63.84,0.192,1310.94
+Detector,RANSAC Thresh (px),Blending,Total Keypoints,Initial Matches,Inliers,Inlier Ratio (%),Mean RMSE (px),Blending Time (ms),Stitching Time (ms)
+SIFT,2.0,feather,9976,2394,1392,57.84,0.232,352.28,813.44
+SIFT,4.0,feather,9976,2394,1395,57.95,0.266,431.1,882.67
+ORB,2.0,feather,17593,2873,2010,69.79,0.874,383.38,781.02
+ORB,4.0,feather,17593,2873,2109,73.23,0.985,290.39,547.45
+AKAZE,4.0,feather,7167,1912,1195,62.16,0.258,281.06,715.15

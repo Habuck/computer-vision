@@ -37,7 +37,24 @@ def create_stereo_from_reference(ref_path="data/reference_image.jpg"):
 
     cv2.imwrite("data/stereo_left.png", imgL)
     cv2.imwrite("data/stereo_right.png", imgR)
-    return imgL, imgR, gt_disp
+    return imgL, imgR, disparity_right_to_left(gt_disp)
+
+def disparity_right_to_left(gt_disp_r):
+    # gt_disp_r is indexed by right-image pixels (x_L = x_R + d), but BM/SGBM report disparity on the left grid.
+    # Forward-splat to the left grid; nearer surfaces (larger d) win, unfilled pixels are occlusions (NaN).
+    h, w = gt_disp_r.shape
+    gt_left = np.full((h, w), np.nan, dtype=np.float32)
+    ys, xs = np.mgrid[0:h, 0:w]
+    xl = np.round(xs + gt_disp_r).astype(int)
+    order = np.argsort(gt_disp_r, axis=None)
+    ys, xl, d = ys.ravel()[order], xl.ravel()[order], gt_disp_r.ravel()[order]
+    inside = xl < w
+    gt_left[ys[inside], xl[inside]] = d[inside]
+
+    left, right = np.roll(gt_left, 1, axis=1), np.roll(gt_left, -1, axis=1)
+    pinhole = np.isnan(gt_left) & ~np.isnan(left) & ~np.isnan(right) & (np.abs(left - right) < 1.5)
+    gt_left[pinhole] = 0.5 * (left[pinhole] + right[pinhole])
+    return gt_left
 
 def compute_epipolar_geometry(imgL, imgR):
     grayL = cv2.cvtColor(imgL, cv2.COLOR_BGR2GRAY)
@@ -68,6 +85,7 @@ def compute_epipolar_geometry(imgL, imgR):
     err1 = np.abs(lines1[:, 0]*inliers1[:, 0] + lines1[:, 1]*inliers1[:, 1] + lines1[:, 2]) / np.hypot(lines1[:, 0], lines1[:, 1])
     err2 = np.abs(lines2[:, 0]*inliers2[:, 0] + lines2[:, 1]*inliers2[:, 1] + lines2[:, 2]) / np.hypot(lines2[:, 0], lines2[:, 1])
     mean_epi_err = float(np.mean(err1 + err2) / 2.0)
+    mean_sampson = sampson_error(F, inliers1, inliers2)
 
     visL, visR = imgL.copy(), imgR.copy()
     w = imgL.shape[1]
@@ -89,7 +107,85 @@ def compute_epipolar_geometry(imgL, imgR):
     epi_pair = np.hstack([visL, visR])
     cv2.imwrite("results/part_b/epipolar_lines.png", epi_pair)
     cv2.imwrite("report_latex/figures/epipolar_lines.png", epi_pair)
-    return F, len(pts1), len(inliers1), mean_epi_err
+    return F, len(pts1), len(inliers1), mean_epi_err, mean_sampson
+
+def sampson_error(F, pts1, pts2):
+    x1 = np.hstack([pts1, np.ones((len(pts1), 1))])
+    x2 = np.hstack([pts2, np.ones((len(pts2), 1))])
+    Fx1 = x1 @ F.T
+    Ftx2 = x2 @ F
+    num = np.sum(x2 * Fx1, axis=1) ** 2
+    den = Fx1[:, 0]**2 + Fx1[:, 1]**2 + Ftx2[:, 0]**2 + Ftx2[:, 1]**2
+    return float(np.mean(np.sqrt(num / den)))
+
+def compute_disparity(grayL, grayR, algo, bsize, ndisp):
+    t0 = time.perf_counter()
+    if algo == "BM":
+        matcher = cv2.StereoBM_create(numDisparities=ndisp, blockSize=bsize)
+    else:
+        matcher = cv2.StereoSGBM_create(
+            minDisparity=0,
+            numDisparities=ndisp,
+            blockSize=bsize,
+            P1=8 * 3 * bsize**2,
+            P2=32 * 3 * bsize**2,
+            uniquenessRatio=10,
+            speckleWindowSize=100,
+            speckleRange=32,
+            mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
+        )
+    disp = matcher.compute(grayL, grayR).astype(np.float32) / 16.0
+    return disp, (time.perf_counter() - t0) * 1000
+
+def evaluate_disparity(disp, gt_disp, margin):
+    valid_mask = disp > 0
+    valid_ratio = np.sum(valid_mask) / disp.size * 100.0
+    # Skip the left band where no full disparity search is possible and occluded pixels without ground truth.
+    eval_mask = valid_mask & ~np.isnan(gt_disp) & (np.arange(disp.shape[1])[None, :] >= margin)
+    err = disp[eval_mask] - gt_disp[eval_mask]
+    rmse = float(np.sqrt(np.mean(err**2)))
+    bad = float(np.mean(np.abs(err) > 2.0) * 100.0)
+    return valid_ratio, rmse, bad
+
+def parameter_sensitivity(grayL, grayR, gt_disp, margin):
+    records = []
+    sweeps = [
+        ("BM", "blockSize", [(b, 64) for b in [5, 9, 15, 21, 31]]),
+        ("SGBM", "blockSize", [(b, 64) for b in [3, 5, 7, 9, 11, 15]]),
+        ("BM", "numDisparities", [(15, n) for n in [48, 64, 96, 128]]),
+        ("SGBM", "numDisparities", [(9, n) for n in [48, 64, 96, 128]]),
+    ]
+    for algo, varied, settings in sweeps:
+        for bsize, ndisp in settings:
+            disp, runtime = compute_disparity(grayL, grayR, algo, bsize, ndisp)
+            valid, rmse, bad = evaluate_disparity(disp, gt_disp, margin)
+            records.append({
+                "Method": algo, "Varied": varied, "blockSize": bsize, "numDisparities": ndisp,
+                "Valid Disparity (%)": round(valid, 2), "RMSE (px)": round(rmse, 2),
+                "Bad-Pixel >2px (%)": round(bad, 2), "Runtime (ms)": round(runtime, 2)
+            })
+
+    df = pd.DataFrame(records)
+    df.to_csv("results/part_b/parameter_sensitivity.csv", index=False)
+    print(df.to_string(index=False))
+
+    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+    for row, varied in enumerate(["blockSize", "numDisparities"]):
+        for col, metric in enumerate(["RMSE (px)", "Bad-Pixel >2px (%)", "Runtime (ms)"]):
+            ax = axes[row, col]
+            for algo in ["BM", "SGBM"]:
+                sub = df[(df["Method"] == algo) & (df["Varied"] == varied)]
+                ax.plot(sub[varied], sub[metric], marker='o', label=algo)
+            ax.set_xlabel(varied)
+            ax.set_ylabel(metric)
+            ax.set_title(f"{metric} vs. {varied}", fontweight='bold')
+            ax.grid(alpha=0.3)
+            ax.legend()
+    plt.suptitle("Part B: Stereo Parameter Sensitivity (BM vs. SGBM)", fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig("results/part_b/parameter_sensitivity.png", dpi=180)
+    plt.savefig("report_latex/figures/parameter_sensitivity.png", dpi=180)
+    plt.close()
 
 def write_ply(filename, verts, colors):
     verts = verts.reshape(-1, 3)
@@ -115,8 +211,19 @@ def run_part_b():
     grayL = cv2.cvtColor(imgL, cv2.COLOR_BGR2GRAY)
     grayR = cv2.cvtColor(imgR, cv2.COLOR_BGR2GRAY)
 
-    F, total_matches, num_inliers, epi_err = compute_epipolar_geometry(imgL, imgR)
-    print(f"Stereo Matches: {total_matches}, Inliers: {num_inliers}, Mean Epipolar Error: {epi_err:.4f} px")
+    F, total_matches, num_inliers, epi_err, sampson = compute_epipolar_geometry(imgL, imgR)
+    print(f"Stereo Matches: {total_matches}, Inliers: {num_inliers}, "
+          f"Mean Epipolar Error: {epi_err:.4f} px, Mean Sampson Error: {sampson:.4f} px")
+    pd.DataFrame([{
+        "Ratio-test Matches": total_matches,
+        "RANSAC Inliers": num_inliers,
+        "Inlier Ratio (%)": round(num_inliers / total_matches * 100.0, 2),
+        "Mean Epipolar Error (px)": round(epi_err, 4),
+        "Mean Sampson Error (px)": round(sampson, 4)
+    }]).to_csv("results/part_b/fundamental_matrix.csv", index=False)
+    np.savetxt("results/part_b/fundamental_matrix.txt", F, fmt="%.8e")
+
+    eval_margin = 128
 
     configs = [
         ("BM", 15, 64),
@@ -130,44 +237,23 @@ def run_part_b():
     fig, axes = plt.subplots(2, 3, figsize=(15, 9))
     axes = axes.ravel()
 
-    axes[0].imshow(gt_disp, cmap='plasma', vmin=0, vmax=64)
-    axes[0].set_title("Ground Truth Disparity Map", fontweight='bold')
+    gt_cmap = plt.get_cmap('plasma').copy()
+    gt_cmap.set_bad('lightgray')
+    axes[0].imshow(np.ma.masked_invalid(gt_disp), cmap=gt_cmap, vmin=0, vmax=64, interpolation='nearest')
+    axes[0].set_title("Ground Truth Disparity (gray = occluded)", fontweight='bold')
     axes[0].axis('off')
 
     best_disp = None
 
     for idx, (algo, bsize, ndisp) in enumerate(configs):
-        t0 = time.perf_counter()
-        if algo == "BM":
-            matcher = cv2.StereoBM_create(numDisparities=ndisp, blockSize=bsize)
-        else:
-            matcher = cv2.StereoSGBM_create(
-                minDisparity=0,
-                numDisparities=ndisp,
-                blockSize=bsize,
-                P1=8 * 3 * bsize**2,
-                P2=32 * 3 * bsize**2,
-                uniquenessRatio=10,
-                speckleWindowSize=100,
-                speckleRange=32,
-                mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
-            )
-        raw_disp = matcher.compute(grayL, grayR).astype(np.float32) / 16.0
-        runtime = (time.perf_counter() - t0) * 1000
-
-        valid_mask = raw_disp > 0
-        valid_ratio = (np.sum(valid_mask) / raw_disp.size) * 100.0
-
-        eval_mask = valid_mask & (np.arange(raw_disp.shape[1])[None, :] >= ndisp)
-        rmse_val = float(np.sqrt(np.mean((raw_disp[eval_mask] - gt_disp[eval_mask])**2)))
-        bad_pixel_rate = float(np.mean(np.abs(raw_disp[eval_mask] - gt_disp[eval_mask]) > 2.0) * 100.0)
+        raw_disp, runtime = compute_disparity(grayL, grayR, algo, bsize, ndisp)
+        valid_ratio, rmse_val, bad_pixel_rate = evaluate_disparity(raw_disp, gt_disp, eval_margin)
 
         records.append({
             "Method": algo,
             "blockSize": bsize,
             "numDisparities": ndisp,
             "Valid Disparity (%)": round(valid_ratio, 2),
-            "Epipolar Error (px)": round(epi_err, 4),
             "RMSE (px)": round(rmse_val, 2),
             "Bad-Pixel >2px (%)": round(bad_pixel_rate, 2),
             "Runtime (ms)": round(runtime, 2)
@@ -190,6 +276,8 @@ def run_part_b():
     df = pd.DataFrame(records)
     df.to_csv("results/part_b/quantitative_part_b.csv", index=False)
     print(df.to_string(index=False))
+
+    parameter_sensitivity(grayL, grayR, gt_disp, eval_margin)
 
     # Reconstruct 3D Point Cloud
     h, w = grayL.shape
